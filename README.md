@@ -13,7 +13,15 @@ This is an automated script to perform various actions on Oroswap (swapping and 
 -   **Retry Logic:** Automatically retries failed swaps due to "max spread limit".
 
 ## Installation
- **Install Dependencies:**
+
+1.  **Clone the repository:**
+
+    ```bash
+    git clone https://github.com/Chimalai/OSP.git
+    ```
+
+2.  **Install Dependencies:**
+    Run this command in the project directory.
 
     ```bash
     npm install
@@ -22,8 +30,6 @@ This is an automated script to perform various actions on Oroswap (swapping and 
 3.  **Configure Environment Variables:**
     Create a file named `.env` in the root directory of the project. This file will store your mnemonic phrases.
     Add your mnemonic phrases for each wallet you want to manage, prefixed with `MNEMONIC_` and a number, like this:
-
-##
 
     ```
     MNEMONIC_1="your first wallet's 12-word mnemonic phrase here"
@@ -38,9 +44,9 @@ To start the bot, simply run:
 
 ```bash
 npm start
-```
 
-Join now with VIP room
-https://t.me/SatpolPProbot
+💼 Join our community
+🚀 Unlock exclusive benefits with our VIP membership! 🤩 Get access to features like script requests, Pharos satsuma Fogo oroswap kaleido monad Etc, and priority support! 💼 Limited only! ⏰
+Join now with VIP room: https://t.me/SatpolPProbot
 Created by: https://t.me/PetrukStar
 Channel: https://t.me/SeputarNewAirdropp
