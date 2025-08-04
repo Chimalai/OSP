@@ -44,8 +44,9 @@ To start the bot, simply run:
 
 ```bash
 npm start
+```
 
-💼 Join our community
+## 💼 Join our community
 🚀 Unlock exclusive benefits with our VIP membership! 🤩 Get access to features like script requests, Pharos satsuma Fogo oroswap kaleido monad Etc, and priority support! 💼 Limited only! ⏰
 Join now with VIP room: https://t.me/SatpolPProbot
 Created by: https://t.me/PetrukStar
