@@ -1,0 +1,25 @@
+{
+  "name": "oroswap-automatic",
+  "version": "1.0.0",
+  "description": "An automatic bot for Oroswap activities (swaps, liquidity).",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "oroswap",
+    "zigchain",
+    "bot",
+    "crypto"
+  ],
+  "author": "PetrukStar",
+  "license": "ISC",
+  "dependencies": {
+    "@cosmjs/cosmwasm-stargate": "^0.32.2",
+    "@cosmjs/proto-signing": "^0.32.2",
+    "@cosmjs/stargate": "^0.32.2",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5"
+  }
+}
+
