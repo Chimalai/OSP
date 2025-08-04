@@ -1,4 +1,4 @@
-Require('dotenv').config();
+require('dotenv').config();
 const axios = require('axios');
 const { SigningCosmWasmClient } = require('@cosmjs/cosmwasm-stargate');
 const { GasPrice, coins } = require('@cosmjs/stargate');
