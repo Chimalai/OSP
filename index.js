@@ -1,4 +1,4 @@
-require('dotenv').config();
+Require('dotenv').config();
 const axios = require('axios');
 const { SigningCosmWasmClient } = require('@cosmjs/cosmwasm-stargate');
 const { GasPrice, coins } = require('@cosmjs/stargate');
@@ -15,14 +15,14 @@ const config = {
   swap: {
     enabled: true,
     countPerLoop: 2,
-    slippage: 2.5, // Adjusted slippage
-    amountZIG: { min: 0.5, max: 1.0 }, // Adjusted swap amount
-    amountORO: { min: 0.5, max: 1.0 }  // Adjusted swap amount
+    slippage: 2.5,
+    amountZIG: { min: 0.5, max: 1.0 },
+    amountORO: { min: 0.5, max: 1.0 }
   },
   pools: {
     enabled: true,
-    amountZIG: 0.8, // Adjusted based on previous insufficient funds error
-    amountORO: 0.8, // Adjusted based on previous insufficient funds error
+    amountZIG: 0.8,
+    amountORO: 0.8,
     withdrawEnabled: true
   }
 };
@@ -152,7 +152,7 @@ async function performSwap(client, address, fromDenom, amount, retryCount = 0) {
     const result = await client.execute(address, config.contract, msg, 'auto', 'Swap (Native)', coins(toMicroUnits(amount, fromDenom), fromDenom));
     logger.info(`Swap successful!`);
     logger.link(`Tx: https://zigscan.org/tx/${result.transactionHash}`);
-    return true;
+    return { success: true };
   } catch (e) {
     const errorMessage = e.message.split('Broadcasting transaction failed')[0];
     logger.error(`Swap failed: ${errorMessage}`);
@@ -162,7 +162,12 @@ async function performSwap(client, address, fromDenom, amount, retryCount = 0) {
       await delay(RETRY_DELAY_SECONDS * 1000);
       return performSwap(client, address, fromDenom, amount, retryCount + 1);
     }
-    return false;
+    if (errorMessage.includes("account sequence mismatch") && retryCount < MAX_RETRIES) {
+      logger.warn(`Sequence mismatch. Retrying... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await delay(RETRY_DELAY_SECONDS * 1000);
+      return { success: false, retrySequence: true };
+    }
+    return { success: false };
   }
 }
 
@@ -181,10 +186,15 @@ async function performAddLiquidity(client, address) {
     const result = await client.execute(address, config.contract, msg, 'auto', '', funds);
     logger.info('Add liquidity successful!');
     logger.link(`Tx: https://zigscan.org/tx/${result.transactionHash}`);
-    return true;
+    return { success: true };
   } catch(e) {
-    logger.error(`Add liquidity failed: ${e.message.split('Broadcasting transaction failed')[0]}`);
-    return false;
+    const errorMessage = e.message.split('Broadcasting transaction failed')[0];
+    logger.error(`Add liquidity failed: ${errorMessage}`);
+    if (errorMessage.includes("account sequence mismatch")) {
+      logger.warn(`Sequence mismatch. Not retrying as add liquidity is a single transaction per wallet.`);
+      return { success: false, retrySequence: true };
+    }
+    return { success: false };
   }
 }
 
@@ -194,17 +204,22 @@ async function performWithdrawLiquidity(client, address) {
     const lpAmount = lpBalance.amount;
     if (parseInt(lpAmount) === 0) {
       logger.warn('No liquidity (LP Tokens) to withdraw.');
-      return false;
+      return { success: false };
     }
     logger.step(`Attempting to withdraw ${lpAmount} LP Tokens...`);
     const msg = { withdraw_liquidity: {} };
     const result = await client.execute(address, config.contract, msg, 'auto', '', coins(lpAmount, config.lpTokenDenom));
     logger.info('Withdraw liquidity successful!');
     logger.link(`Tx: https://zigscan.org/tx/${result.transactionHash}`);
-    return true;
+    return { success: true };
   } catch(e) {
-    logger.error(`Withdraw liquidity failed: ${e.message.split('Broadcasting transaction failed')[0]}`);
-    return false;
+    const errorMessage = e.message.split('Broadcasting transaction failed')[0];
+    logger.error(`Withdraw liquidity failed: ${errorMessage}`);
+    if (errorMessage.includes("account sequence mismatch")) {
+      logger.warn(`Sequence mismatch. Not retrying as withdrawal is a single transaction per wallet.`);
+      return { success: false, retrySequence: true };
+    }
+    return { success: false };
   }
 }
 
@@ -255,11 +270,26 @@ async function main() {
       if (config.swap.enabled) {
         logger.step(`Starting swap cycle (${config.swap.countPerLoop} transactions) for ${account.address}...`);
         for (let j = 0; j < config.swap.countPerLoop; j++) {
-          const fromDenom = j % 2 === 0 ? DENOM_ZIG : DENOM_ORO;
-          const amountConfig = fromDenom === DENOM_ZIG ? config.swap.amountZIG : config.swap.amountORO;
-          const amount = Math.random() * (amountConfig.max - amountConfig.min) + amountConfig.min;
-          const success = await performSwap(client, account.address, fromDenom, amount);
-          if (success) { await refreshPoints(account.address); }
+          let success = false;
+          while (!success) {
+            const fromDenom = j % 2 === 0 ? DENOM_ZIG : DENOM_ORO;
+            const amountConfig = fromDenom === DENOM_ZIG ? config.swap.amountZIG : config.swap.amountORO;
+            const amount = Math.random() * (amountConfig.max - amountConfig.min) + amountConfig.min;
+            const result = await performSwap(client, account.address, fromDenom, amount);
+
+            if (result.success) {
+              success = true;
+              await refreshPoints(account.address);
+            } else if (result.retrySequence) {
+              logger.warn(`Re-initializing client due to sequence mismatch...`);
+              client = await SigningCosmWasmClient.connectWithSigner(config.rpc, wallet, {
+                gasPrice: GasPrice.fromString('0.03uzig'),
+              });
+            } else {
+              // Non-retryable error, exit loop
+              break;
+            }
+          }
           logger.info(`Waiting for ${config.delayInSeconds.betweenTransactions} seconds...`);
           await delay(config.delayInSeconds.betweenTransactions * 1000);
         }
@@ -267,14 +297,38 @@ async function main() {
 
       if (config.pools.enabled) {
         logger.step(`Starting pool cycle for ${account.address}...`);
-        const added = await performAddLiquidity(client, account.address);
-        if (added) {
-          await refreshPoints(account.address);
-          if (config.pools.withdrawEnabled) {
-            logger.info(`Waiting for ${config.delayInSeconds.betweenTransactions} seconds before withdrawing liquidity...`);
-            await delay(config.delayInSeconds.betweenTransactions * 1000);
-            const withdrawn = await performWithdrawLiquidity(client, account.address);
-            if (withdrawn) { await refreshPoints(account.address); }
+        let added = false;
+        while (!added) {
+          const result = await performAddLiquidity(client, account.address);
+          if (result.success) {
+            added = true;
+            await refreshPoints(account.address);
+            if (config.pools.withdrawEnabled) {
+              logger.info(`Waiting for ${config.delayInSeconds.betweenTransactions} seconds before withdrawing liquidity...`);
+              await delay(config.delayInSeconds.betweenTransactions * 1000);
+              let withdrawn = false;
+              while(!withdrawn) {
+                  const resultWithdraw = await performWithdrawLiquidity(client, account.address);
+                  if (resultWithdraw.success) {
+                      withdrawn = true;
+                      await refreshPoints(account.address);
+                  } else if (resultWithdraw.retrySequence) {
+                      logger.warn(`Re-initializing client due to sequence mismatch...`);
+                      client = await SigningCosmWasmClient.connectWithSigner(config.rpc, wallet, {
+                        gasPrice: GasPrice.fromString('0.03uzig'),
+                      });
+                  } else {
+                      break;
+                  }
+              }
+            }
+          } else if (result.retrySequence) {
+            logger.warn(`Re-initializing client due to sequence mismatch...`);
+            client = await SigningCosmWasmClient.connectWithSigner(config.rpc, wallet, {
+              gasPrice: GasPrice.fromString('0.03uzig'),
+            });
+          } else {
+            break;
           }
         }
       }
