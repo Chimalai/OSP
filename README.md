@@ -18,6 +18,7 @@ This is an automated script to perform various actions on Oroswap (swapping and 
 
     ```bash
     git clone https://github.com/Chimalai/OSP.git
+    cd OSP
     ```
 
 2.  **Install Dependencies:**
