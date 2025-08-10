@@ -10,7 +10,7 @@ const config = {
   lpTokenDenom: "factory/coin.zig1vhr7hx0yeww0uwe2zlp6mst5g6aup85engzntlyv52rkmxsykvdskfv0tu.oroswaplptoken/lp",
   delayInSeconds: {
     betweenTransactions: 2,
-    betweenLoops: 1800
+    betweenLoops: 5
   },
   swap: {
     enabled: true,
